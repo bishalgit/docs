@@ -1,0 +1,74 @@
+Steps to Sign the Example Request
+
+eg: http://localhost/oauth2/get_tags?productId=1&responseGroup=ItemAttributes,Offers,Images&version=11-0-01
+
+with client_id and signature in header
+
+Eg. Authorization: Key <<client_id:signature>>
+
+*** encode client_id using base64.urlsafe_b64encode(<<client_id>>) ***
+
+1. Enter the time stamp. For this example, we'll use the UTC time 2018-06-01T13:33:02Z
+	* import datetime
+	* datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+	* http://localhost/oauth2/get_tags?productId=1&responseGroup=ItemAttributes,Offers,Images&version=11-0-01&timestamp=2018-06-01T13:33:02Z
+
+2. URL encode the request's comma (,) and colon (:) characters, so that they don't get misinterpreted. For more information about converting to RFC 3986 specifications, see documentation and code samples for your programming language.
+	* import urllib
+	* params = {"client_id":"MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh","productId":"1","responseGroup":"ItemAttributes,Offers,Image","version":"11-0-01","timestamp":"2018-06-01T13:33:02Z"}
+	* urllib.parse.urlencode(params)
+	* http://localhost/oauth2/get_tags?responseGroup=ItemAttributes%2COffers%2CImage&productId=1&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01&client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh
+
+3. Split the parameter/value pairs and delete the ampersand characters (&). The linebreaks used in the following example follow Unix convention (ASCII 0A, "line feed" character).
+	* temp = "responseGroup=ItemAttributes%2COffers%2CImage&productId=1&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01&client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh"
+	* listArgs = temp.split("&")
+	* ['responseGroup=ItemAttributes%2COffers%2CImage', 'productId=1', 'timestamp=2018-06-01T13%3A33%3A02Z', 'version=11-0-01', 'client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh']
+
+4. Sort your parameter/value pairs by byte value (not alphabetically, lowercase parameters will be listed after uppercase ones).
+	* listArgs.sort()
+	* In python, sort() will sort the parameter/value pairs by byte value, lowercase parameters will be listed after uppercase ones
+	* ['client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh', 'productId=1', 'responseGroup=ItemAttributes%2COffers%2CImage', 'timestamp=2018-06-01T13%3A33%3A02Z', 'version=11-0-01']
+
+5. Rejoin the sorted parameter/value list with ampersands. The result is the canonical string that we'll sign:
+	* '&'.join(listArgs)
+	* 'client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh&productId=1&responseGroup=ItemAttributes%2COffers%2CImage&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01'
+
+6. Prepend the following three lines (with line breaks) before the canonical string:
+	GET ==> method
+	localhost:8069
+	/oauth2/get_tags
+
+	* Use "\n" to concate these strings and append the final result to the sorted parameter/value pair canonical string
+7. The string to sign:
+	GET
+	localhost:8069
+	/oauth2/get_tags
+	client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh&productId=1&responseGroup=ItemAttributes%2COffers%2CImage&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01
+
+8. Calculate an RFC 2104-compliant HMAC with the provided (SHA256, SHA384, SHA512) hash algorithm using the string above with the example secret key: 457967861b296e9e4b5e006784f9219e8f6da355fdc9e28d7707b01ec58ad1d1. For more information about this step, see documentation and code samples for your programming language.
+
+9. URL encode the plus (+) and equal (=) characters in the signature:
+
+	* from cryptography.hazmat.backends import default_backend
+	* from cryptography.hazmat.primitives import hashes, hmac
+	* import base64
+	* import urllib
+	canonical_string = GET
+	localhost:8069
+	/oauth2/get_tags
+	client_id=MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh&productId=1&responseGroup=ItemAttributes%2COffers%2CImage&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01
+	* h = hmac.HMAC(b'457967861b296e9e4b5e006784f9219e8f6da355fdc9e28d7707b01ec58ad1d1',hashes.SHA256(), backend=default_backend())
+	* h.update(bytes(canonical_string,'utf-8'))
+	* digest = h.finalize()
+* signature = urllib.parse.quote_plus(base64.urlsafe_b64encode(digest).decode(encoding="utf-8"))
+	* 
+	* G8L06f4Jowk8J70LY55PuLxn7CxLO6bvoAFjWOvNA9s=
+
+	* G8L06f4Jowk8J70LY55PuLxn7CxLO6bvoAFjWOvNA9s%3D
+
+10. Add the URL encoded signature to your request, and the result is a properly-formatted signed request:
+	* So the final request looks like this
+	http://localhost:8069/oauth2/get_tags?productId=1&responseGroup=ItemAttributes%2COffers%2CImage&timestamp=2018-06-01T13%3A33%3A02Z&version=11-0-01
+
+	with headers including
+	Authorization: Key MDNhMDFiMzUtYjk3Ny00ZTI1LTkwMDMtNTM4YTk5NjQzODZh:G8L06f4Jowk8J70LY55PuLxn7CxLO6bvoAFjWOvNA9s%3D
